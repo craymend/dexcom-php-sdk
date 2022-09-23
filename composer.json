@@ -1,0 +1,29 @@
+{
+    "name": "craymend/dexcom-php-sdk",
+    "description": "A PHP wrapper for the Dexcom API",
+    "keywords": [
+        "dexcom",
+        "php",
+        "api",
+        "sdk"
+    ],
+    "homepage": "https://github.com/craymend/dexcom-php-sdk",
+    "type": "library",
+    "license": "MIT",
+    "authors": [
+        {
+            "name": "Cray Mend",
+            "email": "craymend1@gmail.com",
+            "role": "Developer"
+        }
+    ],
+    "require": {
+        "php": "^7.2",
+        "guzzlehttp/guzzle": "~7.0"
+    },
+    "autoload": {
+        "psr-4": {
+            "Craymend\\Dexcom\\": "src/"
+        }
+    }
+}
