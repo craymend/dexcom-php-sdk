@@ -103,8 +103,7 @@ You can now use the Dexcom API. For example, [retrieve device calibration](https
 
 ```php
 <?php
-$request = new Request($accessToken);
-$request->setMode($sandboxMode);
+$request = new Request($accessToken, $sandboxMode);
 
 $uri = '/users/self/calibrations';
 $data = [
