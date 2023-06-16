@@ -1,6 +1,6 @@
 # Dexcom API SDK
 
-This package is a PHP wrapper for the [Dexcom API v2](https://developer.dexcom.com/overview).
+This package is a PHP wrapper for the [Dexcom API](https://developer.dexcom.com/overview).
 
 ### Requirements
 
