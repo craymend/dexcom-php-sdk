@@ -15,6 +15,7 @@ final class Request
 
     const API_VERSION_SANDBOX = 'v2';
     const API_VERSION_PRODUCTION = 'v2';
+    const DEFAULT_API_VERSION = 'v2';
 
     const BASE_URL_SANDBOX = 'https://sandbox-api.dexcom.com';
     const BASE_URL_PRODUCTION = 'https://api.dexcom.com';
@@ -37,24 +38,24 @@ final class Request
     /**
      * Defualts to "PRODUCTION" mode
      */
-    public function __construct($accessToken='', $mode = '')
+    public function __construct($accessToken='', $mode = '', $apiVersion='')
     {
         $this->accessToken = $accessToken;
         
         $this->mode = $mode ? $mode : self::MODE_PRODUCTION;
-        $this->setMode($this->mode); // set baseUrl
+        $this->apiVersion = $apiVersion ? $apiVersion : self::DEFAULT_API_VERSION;
+
+        $this->setMode($this->mode, $this->apiVersion); // set baseUrl
     }
 
     /**
      * @return null
      */
-    public function setMode($mode){
-        $this->mode = $mode;
-
-        if($this->mode == self::MODE_SANDBOX){
-            $this->baseUrl = self::BASE_URL_SANDBOX . '/' . self::API_VERSION_SANDBOX;
+    public function setMode($mode, $apiVersion){
+        if($mode == self::MODE_SANDBOX){
+            $this->baseUrl = self::BASE_URL_SANDBOX . '/' . $apiVersion;
         }else{
-            $this->baseUrl = self::BASE_URL_PRODUCTION . '/' . self::API_VERSION_PRODUCTION;
+            $this->baseUrl = self::BASE_URL_PRODUCTION . '/' . $apiVersion;
         }
     }
 
