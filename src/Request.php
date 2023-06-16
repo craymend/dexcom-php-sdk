@@ -28,6 +28,11 @@ final class Request
     /**
      * @var string
      */
+    private $domainUrl;
+
+    /**
+     * @var string
+     */
     private $baseUrl;
 
     /**
@@ -37,26 +42,35 @@ final class Request
 
     /**
      * Defualts to "PRODUCTION" mode
+     * 
+     * @return null
      */
-    public function __construct($accessToken='', $mode = '', $apiVersion='')
-    {
+    public function __construct($accessToken='', $mode = '', $apiVersion=''){
         $this->accessToken = $accessToken;
         
         $this->mode = $mode ? $mode : self::MODE_PRODUCTION;
         $this->apiVersion = $apiVersion ? $apiVersion : self::DEFAULT_API_VERSION;
 
         $this->setMode($this->mode, $this->apiVersion); // set baseUrl
+
+        return null;
     }
 
     /**
      * @return null
      */
-    public function setMode($mode, $apiVersion){
+    public function setMode($mode, $apiVersion=''){
+        $apiVersion = $apiVersion ? $apiVersion : self::DEFAULT_API_VERSION;
+
         if($mode == self::MODE_SANDBOX){
+            $this->domainUrl = self::BASE_URL_SANDBOX;
             $this->baseUrl = self::BASE_URL_SANDBOX . '/' . $apiVersion;
         }else{
+            $this->domainUrl = self::BASE_URL_PRODUCTION;
             $this->baseUrl = self::BASE_URL_PRODUCTION . '/' . $apiVersion;
         }
+
+        return null;
     }
 
     /**
@@ -67,17 +81,22 @@ final class Request
     }
 
     /**
+     * NOTE: As of 2023.06.16 Dexcom's /oauth2 endpoints require /v2
+     * 
 	 * @return string
 	 */
     public function getAuthUrl($redirectUri, $clientId){
-        return "$this->baseUrl/oauth2/login?client_id=$clientId&redirect_uri=$redirectUri&response_type=code&scope=offline_access";
+        return "$this->domainUrl/v2/oauth2/login?client_id=$clientId&redirect_uri=$redirectUri&response_type=code&scope=offline_access";
     }
 
     /**
+     * NOTE: As of 2023.06.16 Dexcom's /oauth2 endpoints require /v2
+     * 
 	 * @return Response
 	 */
     public function exchangeCode($code, $redirectUri, $clientId, $clientSecret){
-        $url = "$this->baseUrl/oauth2/token";
+        $path = '/oauth2/token';
+        $url = $this->domainUrl . '/v2' . $path;
 
         $data = [
             'code' => $code,
@@ -87,16 +106,17 @@ final class Request
             'client_id' => $clientId
         ];
 
-        $response = $this->post('/oauth2/token', $data);
-
-        return $response;
+        return $this->sendRequest('POST', $url, $data);
     }
 
     /**
+     * NOTE: As of 2023.06.16 Dexcom's /oauth2 endpoints require /v2
+     * 
 	 * @return Response
 	 */
     public function exchangeRefreshToken($token, $redirectUri, $clientId, $clientSecret){
-        $url = "$this->baseUrl/oauth2/token";
+        $path = '/oauth2/token';
+        $url = $this->domainUrl . '/v2' . $path;
 
         $data = [
             'refresh_token' => $token,
@@ -106,9 +126,7 @@ final class Request
             'client_secret' => $clientSecret
         ];
 
-        $response = $this->post('/oauth2/token', $data);
-
-        return $response;
+        return $this->sendRequest('POST', $url, $data);
     }
 
     /**
@@ -116,7 +134,8 @@ final class Request
 	 */
     public function get($path, array $params)
     {
-        return $this->sendRequest('GET', $path, $params);
+        $url = $this->baseUrl . $path;
+        return $this->sendRequest('GET', $url, $params);
     }
 
     /**
@@ -124,7 +143,8 @@ final class Request
 	 */
     public function post($path, array $body)
     {
-        return $this->sendRequest('POST', $path, $body);
+        $url = $this->baseUrl . $path;
+        return $this->sendRequest('POST', $url, $body);
     }
 
     /**
@@ -132,7 +152,8 @@ final class Request
 	 */
     public function put($path, array $body)
     {
-        return $this->sendRequest('PUT', $path, $body);
+        $url = $this->baseUrl . $path;
+        return $this->sendRequest('PUT', $url, $body);
     }
 
     /**
@@ -140,7 +161,8 @@ final class Request
 	 */
     public function delete($path)
     {
-        return $this->sendRequest('DELETE', $path);
+        $url = $this->baseUrl . $path;
+        return $this->sendRequest('DELETE', $url);
     }
 
     /**
@@ -166,10 +188,8 @@ final class Request
     /**
      * @return Response
      */
-    private function sendRequest($method, $path, array $data = null)
+    private function sendRequest($method, $url, array $data = null)
     {
-        $uri = $this->baseUrl . $path;
-
         $requestOptions = [];
         $headers = [];
 
@@ -205,7 +225,7 @@ final class Request
         try {
             $client = new Client();
 
-            $response = $client->request($method, $uri, $requestOptions);
+            $response = $client->request($method, $url, $requestOptions);
 
             $data = (array) json_decode($response->getBody(), true);
 
