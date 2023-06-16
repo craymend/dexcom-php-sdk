@@ -74,7 +74,7 @@ echo "refresh_token: $refreshToken<br>";
 
 ```
 
-You can also echange the refresh token for a new refresh token and access token:
+You can also exchange the refresh token for an access token and new refresh:
 
 
 ```php
