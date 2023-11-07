@@ -215,7 +215,9 @@ final class Request
             $requestOptions[RequestOptions::FORM_PARAMS] = $data;
         }else if($method === 'GET' && null !== $data){
             $requestOptions[RequestOptions::QUERY] = $data;
-        }
+        } else if($method === 'PUT' && null !== $data) {
+            $requestOptions[RequestOptions::JSON] = $data;
+		}
 
         // echo 'Guzzle request options: <br><br>';
         // echo json_encode($requestOptions);
