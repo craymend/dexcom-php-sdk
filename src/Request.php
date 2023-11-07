@@ -203,9 +203,13 @@ final class Request
         if($this->accessToken){
             $headers['Authorization'] = 'Bearer ' . $this->accessToken;
         }
+
         if ($method === 'POST' && null !== $data) {
             $headers['content-type'] = 'application/x-www-form-urlencoded';
+        }else if ($method === 'PUT' && null !== $data) {
+            $headers['content-type'] = 'application/json';
         }
+
         if(count($headers) > 0){
             $requestOptions[RequestOptions::HEADERS] = $headers;
         }
@@ -217,7 +221,7 @@ final class Request
             $requestOptions[RequestOptions::QUERY] = $data;
         } else if($method === 'PUT' && null !== $data) {
             $requestOptions[RequestOptions::JSON] = $data;
-		}
+        }
 
         // echo 'Guzzle request options: <br><br>';
         // echo json_encode($requestOptions);
