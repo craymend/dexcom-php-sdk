@@ -18,7 +18,9 @@ final class Request
     const DEFAULT_API_VERSION = 'v2';
 
     const BASE_URL_SANDBOX = 'https://sandbox-api.dexcom.com';
+    const BASE_URL_SANDBOX_OUS = 'https://sandbox-api.dexcom.eu';
     const BASE_URL_PRODUCTION = 'https://api.dexcom.com';
+    const BASE_URL_PRODUCTION_OUS = 'https://api.dexcom.eu';
     
     /**
      * @var string - "SANDBOX" | "PRODUCTION"
@@ -41,17 +43,28 @@ final class Request
     private $accessToken;
 
     /**
-     * Defualts to "PRODUCTION" mode
+     * @var string
+     */
+    private $apiVersion;
+
+    /**
+     * @var bool
+     */
+    private $isOus;
+
+    /**
+     * Defaults to "PRODUCTION" mode
      * 
      * @return null
      */
-    public function __construct($accessToken='', $mode = '', $apiVersion=''){
+    public function __construct($accessToken='', $mode = '', $apiVersion='', $isOus=false){
         $this->accessToken = $accessToken;
         
         $this->mode = $mode ? $mode : self::MODE_PRODUCTION;
         $this->apiVersion = $apiVersion ? $apiVersion : self::DEFAULT_API_VERSION;
+        $this->isOus = $isOus;
 
-        $this->setMode($this->mode, $this->apiVersion); // set baseUrl
+        $this->setBaseUrl($this->mode, $this->apiVersion, $this->isOus); // set baseUrl
 
         return null;
     }
@@ -59,15 +72,25 @@ final class Request
     /**
      * @return null
      */
-    public function setMode($mode, $apiVersion=''){
+    public function setBaseUrl($mode, $apiVersion='', $isOus=false){
         $apiVersion = $apiVersion ? $apiVersion : self::DEFAULT_API_VERSION;
 
         if($mode == self::MODE_SANDBOX){
-            $this->domainUrl = self::BASE_URL_SANDBOX;
-            $this->baseUrl = self::BASE_URL_SANDBOX . '/' . $apiVersion;
+            if($isOus){
+                $this->domainUrl = self::BASE_URL_SANDBOX_OUS;
+                $this->baseUrl = self::BASE_URL_SANDBOX_OUS . '/' . $apiVersion;
+            }else{
+                $this->domainUrl = self::BASE_URL_SANDBOX;
+                $this->baseUrl = self::BASE_URL_SANDBOX . '/' . $apiVersion;
+            }
         }else{
-            $this->domainUrl = self::BASE_URL_PRODUCTION;
-            $this->baseUrl = self::BASE_URL_PRODUCTION . '/' . $apiVersion;
+            if($isOus){
+                $this->domainUrl = self::BASE_URL_PRODUCTION_OUS;
+                $this->baseUrl = self::BASE_URL_PRODUCTION_OUS . '/' . $apiVersion;
+            }else{
+                $this->domainUrl = self::BASE_URL_PRODUCTION;
+                $this->baseUrl = self::BASE_URL_PRODUCTION . '/' . $apiVersion;
+            }
         }
 
         return null;
