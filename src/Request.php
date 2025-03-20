@@ -160,6 +160,24 @@ final class Request
     }
 
     /**
+     * @return null
+     */
+    public function setAccessToken($accessToken){
+        $this->accessToken = $accessToken;
+
+        return null;
+    }
+
+    /**
+     * @return null
+     */
+    public function setIsOus($isOus){
+        $this->isOus = $isOus;
+
+        return null;
+    }
+
+    /**
 	 * @return Response
 	 */
     public function get($path, array $params)
