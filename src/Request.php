@@ -53,6 +53,11 @@ final class Request
     private $isOus;
 
     /**
+     * @var GuzzleHttp\Client
+     */
+    private $client;
+
+    /**
      * Defaults to "PRODUCTION" mode
      * 
      * @return null
@@ -65,6 +70,8 @@ final class Request
         $this->isOus = $isOus;
 
         $this->setBaseUrl($this->mode, $this->apiVersion, $this->isOus); // set baseUrl
+
+        $this->client = new Client();
 
         return null;
     }
@@ -252,9 +259,7 @@ final class Request
 
         // send request
         try {
-            $client = new Client();
-
-            $response = $client->request($method, $url, $requestOptions);
+            $response = $this->client->request($method, $url, $requestOptions);
 
             $data = (array) json_decode($response->getBody(), true);
 
