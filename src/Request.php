@@ -6,6 +6,31 @@ use GuzzleHttp\Client;
 use GuzzleHttp\RequestOptions;
 
 /**
+ * 2025.03.24
+ * 
+ * Due to Guzzle's DNS resolution intermittently failing when querying Dexcom's domain, this class includes a 
+ *   custom DNS resolver.
+ *   The custom resolver uses dns_get_record() and substitutes a random value
+ *   from the list of returned IP addresses if the resolution is successful.
+ * 
+ * The root cause of the DNS failure is uncertain. After much testing we found that netstat, cURL, and
+ *   dns_get_record() have a 100% DNS resolution success rate, but for some reason the Guzzle 
+ *   DNS resolution still fails between 5% and 30% of the time.
+ *   Based on these symptoms an LLM had this explanation:
+ * 
+ * "Key Findings
+ *   1. DNS Resolution Success: PHP's dns_get_record() is successfully resolving the hostname to Cloudflare IPs 100% of the time
+ *   2. Guzzle Disconnect: Despite successful DNS resolution, Guzzle/cURL still fails to resolve the host in 1 out of 20 cases
+ *   3. CNAME Chain: The hostname resolves to "api.dexcom.com.cdn.cloudflare.net" - indicating there's a CNAME record in the DNS chain
+ *   4. DNS Alternating IPs: The domain resolves to two IP addresses that alternate in position (104.18.39.70 and 172.64.148.186)
+ * 
+ * Root Cause Identified
+ *   The issue appears to be a timing or handoff problem between PHP's DNS 
+ *   resolution and cURL's DNS handling. Even though PHP resolves the DNS correctly, 
+ *   there's occasionally a failure when *that information is passed to cURL."
+ */
+
+/**
  * Perform API calls
  */
 final class Request
@@ -58,11 +83,27 @@ final class Request
     private $client;
 
     /**
+     * @var array
+     */
+    private $resolvedIps = [];
+
+    /**
+     * @var int
+     */
+    private $lastDnsResolveTime = 0;
+
+    /**
+     * @var int
+     */
+    private $dnsCacheTtl = 300; // 5 minutes cache TTL
+
+    /**
      * Defaults to "PRODUCTION" mode
      * 
      * @return null
      */
-    public function __construct($accessToken='', $mode = '', $apiVersion='', $isOus=false){
+    public function __construct($accessToken='', $mode = '', $apiVersion='', $isOus=false)
+    {
         $this->accessToken = $accessToken;
         
         $this->mode = $mode ? $mode : self::MODE_PRODUCTION;
@@ -71,15 +112,90 @@ final class Request
 
         $this->setBaseUrl($this->mode, $this->apiVersion, $this->isOus); // set baseUrl
 
-        $this->client = new Client();
+        // Update DNS cache and initialize client
+        $this->updateDnsCache();
+        $this->initializeClient();
 
+        return null;
+    }
+    
+    /**
+     * Initialize Guzzle client with custom DNS resolver
+     */
+    private function initializeClient()
+    {
+        // Extract domain from baseUrl
+        $urlParts = parse_url($this->baseUrl);
+        $defaultUrlParts = parse_url(self::BASE_URL_PRODUCTION);
+        $domain = $urlParts['host'] ?? $defaultUrlParts['host'];
+        
+        // Get a resolved IP from cache
+        $ip = $this->getResolvedIp();
+        
+        // Only add CURLOPT_RESOLVE if we have a valid IP
+        if ($ip) {
+            $clientOptions = [
+                'curl' => [
+                    CURLOPT_RESOLVE => ["$domain:443:$ip"]
+                ]
+            ];
+
+            $this->client = new Client($clientOptions);
+        }else{
+            $this->client = new Client();
+        }
+    }
+    
+    /**
+     * Update the DNS cache if it's expired
+     */
+    private function updateDnsCache()
+    {
+        $currentTime = time();
+        
+        // If cache is expired or empty
+        if ($currentTime - $this->lastDnsResolveTime > $this->dnsCacheTtl || empty($this->resolvedIps)) {
+            // Extract domain from baseUrl
+            $urlParts = parse_url($this->baseUrl);
+            $defaultUrlParts = parse_url(self::BASE_URL_PRODUCTION);
+            $domain = $urlParts['host'] ?? $defaultUrlParts['host'];
+            
+            // Get IPs from DNS
+            $dnsRecords = dns_get_record($domain, DNS_A);
+            $ips = [];
+            
+            foreach ($dnsRecords as $record) {
+                if (isset($record['ip'])) {
+                    $ips[] = $record['ip'];
+                }
+            }
+            
+            if (!empty($ips)) {
+                $this->resolvedIps = $ips;
+                $this->lastDnsResolveTime = $currentTime;
+            }
+        }
+    }
+    
+    /**
+     * Get a random IP from resolved IPs
+     */
+    private function getResolvedIp()
+    {
+        $this->updateDnsCache();
+        
+        if (!empty($this->resolvedIps)) {
+            return $this->resolvedIps[array_rand($this->resolvedIps)];
+        }
+        
         return null;
     }
 
     /**
      * @return null
      */
-    public function setBaseUrl($mode, $apiVersion='', $isOus=false){
+    public function setBaseUrl($mode, $apiVersion='', $isOus=false)
+    {
         $apiVersion = $apiVersion ? $apiVersion : self::DEFAULT_API_VERSION;
 
         if($mode == self::MODE_SANDBOX){
@@ -106,7 +222,8 @@ final class Request
     /**
      * @return string
      */
-    public function getBaseUrl(){
+    public function getBaseUrl()
+    {
         return $this->baseUrl;
     }
 
@@ -115,7 +232,8 @@ final class Request
      * 
 	 * @return string
 	 */
-    public function getAuthUrl($redirectUri, $clientId){
+    public function getAuthUrl($redirectUri, $clientId)
+    {
         return "$this->domainUrl/v2/oauth2/login?client_id=$clientId&redirect_uri=$redirectUri&response_type=code&scope=offline_access";
     }
 
@@ -124,7 +242,8 @@ final class Request
      * 
 	 * @return Response
 	 */
-    public function exchangeCode($code, $redirectUri, $clientId, $clientSecret){
+    public function exchangeCode($code, $redirectUri, $clientId, $clientSecret)
+    {
         $path = '/oauth2/token';
         $url = $this->domainUrl . '/v2' . $path;
 
@@ -144,7 +263,8 @@ final class Request
      * 
 	 * @return Response
 	 */
-    public function exchangeRefreshToken($token, $redirectUri, $clientId, $clientSecret){
+    public function exchangeRefreshToken($token, $redirectUri, $clientId, $clientSecret)
+    {
         $path = '/oauth2/token';
         $url = $this->domainUrl . '/v2' . $path;
 
@@ -162,7 +282,8 @@ final class Request
     /**
      * @return null
      */
-    public function setAccessToken($accessToken){
+    public function setAccessToken($accessToken)
+    {
         $this->accessToken = $accessToken;
 
         return null;
@@ -171,7 +292,8 @@ final class Request
     /**
      * @return null
      */
-    public function setIsOus($isOus){
+    public function setIsOus($isOus)
+    {
         $this->isOus = $isOus;
 
         return null;
@@ -236,8 +358,14 @@ final class Request
     /**
      * @return Response
      */
-    private function sendRequest($method, $url, array $data = null)
+    private function sendRequest($method, $url, array |null $data = null)
     {
+        // Check if we need to update our client with fresh DNS
+        if (time() - $this->lastDnsResolveTime > $this->dnsCacheTtl) {
+            $this->updateDnsCache();
+            $this->initializeClient(); // Reinitialize with fresh DNS
+        }
+        
         $requestOptions = [];
         $headers = [];
 
@@ -282,9 +410,24 @@ final class Request
             $data = (array) json_decode($response->getBody(), true);
 
             return new Response(true, $data);
-        }catch (\Exception $e) {
+        } catch (\Exception $e) {
+            // On connection errors, try once more with a fresh client and DNS resolution
+            if ($e instanceof \GuzzleHttp\Exception\ConnectException) {
+                $this->updateDnsCache();
+                $this->initializeClient();
+                
+                try {
+                    $response = $this->client->request($method, $url, $requestOptions);
+                    $data = (array) json_decode($response->getBody(), true);
+                    
+                    return new Response(true, $data);
+                } catch (\Exception $retryException) {
+                    $errors['errors'] = [$retryException->getMessage()];
+                    return new Response(false, [], $errors);
+                }
+            }
+            
             $errors['errors'] = [$e->getMessage()];
-
             return new Response(false, [], $errors);
         }
     }
